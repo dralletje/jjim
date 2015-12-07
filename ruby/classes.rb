@@ -2,10 +2,10 @@ require 'ostruct'
 
 class Indentation
   def initialize(line)
-    withoutIndent = line.gsub(/^ */, '')
+    without_indent = line.gsub(/^ */, '')
 
-    @indentation = line.length - withoutIndent.length
-    @line = withoutIndent
+    @indentation = line.length - without_indent.length
+    @line = without_indent
   end
 
   def line
@@ -19,6 +19,7 @@ end
 
 class Line
   attr_reader :line
+  attr_reader :child_lines
 
   def initialize(line, child_lines = [])
     @line = line
@@ -40,24 +41,19 @@ class Line
   end
 
   # Create nested object
-  def getChildren
+  def get_children
     if @child_lines.first.nil?
       []
     else
-      [Line.new(@child_lines.first.line, nested_children)] + Line.new('', next_lines).getChildren
+      [Line.new(@child_lines.first.line, nested_children)] + Line.new('', next_lines).get_children
     end
   end
 
-  def getBlock
-    nextLine = @child_lines.first
+  def get_block
+    next_line = @child_lines.first
     @child_lines.map do |child|
-      (' ' * (child.indentation - nextLine.indentation)) + child.line
+      (' ' * (child.indentation - next_line.indentation)) + child.line
     end
-  end
-
-  # For javascript 'compatibility'
-  def childLines
-    @child_lines
   end
 end
 

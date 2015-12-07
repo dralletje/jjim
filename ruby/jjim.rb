@@ -10,5 +10,5 @@ def graph(code)
     .select{ |x| x.strip != '' } # No empty lines
     .map{ |line| Indentation.new(line) }
 
-  Grapher.makeGraph(Line.new('', lines).getChildren)
+  Grapher.make_graph(Line.new('', lines).get_children)
 end

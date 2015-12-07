@@ -20,13 +20,12 @@ module LanguageDefinition
   EMBEDDED = ['javascript']
 
   REGULAR_EXPRESSIONS = OpenStruct.new({
-    matchElement: /^([a-z#.][^ :]*) *([|= ]|==|$)((?: *[^ ]+)*)$/i,
-    matchInline: /^([^: ]+): *(.*)/,
-    tagOrClassOrId: /(?:[a-z]+)|(?:#[a-z0-9-]+)|(?:\.[a-z0-9-]+)/i,
+    match_element: /^([a-z#.][^ :]*) *([|= ]|==|$)((?: *[^ ]+)*)$/i,
+    match_inline: /^([^: ]+): *(.*)/,
+    match_logic: /^- (.*)/,
+    match_special_text: /^(\||==?) *(.*)/,
+
+    tag_or_class_or_id: /(?:[a-z]+)|(?:#[a-z0-9-]+)|(?:\.[a-z0-9-]+)/i,
     attribute: /^([a-z]+)=[^ ]/i,
-
-    matchLogic: /^- (.*)/,
-
-    matchSpecialText: /^(\||==?) *(.*)/,
   })
 end
