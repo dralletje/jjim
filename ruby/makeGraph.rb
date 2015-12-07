@@ -1,8 +1,12 @@
 require_relative 'classes'
+require_relative 'constants'
+
 require 'ostruct'
 require 'pp'
 
 class Grapher
+  include LanguageDefinition
+
   def self.assert(pred, msg)
     if not pred
       raise Exception.new(msg)
@@ -26,45 +30,17 @@ class Grapher
     ]
   end
 
-  def self.makeNode(type, payload)
-    Node.new(type, payload)
-  end
-
-  $regexp = OpenStruct.new({
-    matchElement: /^([a-z#.][^ :]*) *([|= ]|==|$)((?: *[^ ]+)*)$/i,
-    matchInline: /^([^: ]+): *(.*)/,
-    tagOrClassOrId: /(?:[a-z]+)|(?:#[a-z0-9-]+)|(?:\.[a-z0-9-]+)/i,
-    attribute: /^([a-z]+)=[^ ]/i,
-
-    matchLogic: /^- (.*)/,
-
-    matchSpecialText: /^(\||==?) *(.*)/,
-  })
-
   def self.makeTextNode(node)
     assert(node.getChildren.length == 0, 'A text node can\'t have any children')
 
-    specialText = match($regexp.matchSpecialText, node.line)
+    specialText = match(REGULAR_EXPRESSIONS.matchSpecialText, node.line)
     operator, text = (specialText or ['|', node.line])
 
-    case operator
-    when '|'
-      makeNode(:Text, text)
-    when '='
-      makeNode(:Variable, {
-        code: text,
-        escaped: true,
-      })
-    when '=='
-      makeNode(:Variable, {
-        code: text,
-        escaped: false,
-      })
-    end
+    TEXT_NODE_TYPES[operator].call(text)
   end
 
-  $matchers = [{
-    regexp: $regexp.matchSpecialText,
+  MATCHERS = [{
+    regexp: REGULAR_EXPRESSIONS.matchSpecialText,
     handler: lambda do |node, tail, accumulator|
       assert(
         node.getChildren.length === 0,
@@ -73,11 +49,11 @@ class Grapher
       return [tail, accumulator + [makeTextNode(node)]]
     end,
   }, {
-    regexp: $regexp.matchInline,
+    regexp: REGULAR_EXPRESSIONS.matchInline,
     handler: lambda do |node, tail, accumulator|
-      tag, rest = match($regexp.matchInline, node.line)
+      tag, rest = match(REGULAR_EXPRESSIONS.matchInline, node.line)
       if EMBEDDED.include?(tag)
-        return [tail, accumulator + [makeNode(:Block, {
+        return [tail, accumulator + [Node.new(:Block, {
           type: tag,
           block: (rest == '' ? [] : [rest]).concat(node.getBlock())
         })]]
@@ -92,12 +68,12 @@ class Grapher
     end,
   }, {
     # Html tags like tag, .class, #id and mixes of those
-    regexp: $regexp.matchElement,
+    regexp: REGULAR_EXPRESSIONS.matchElement,
     handler: lambda do |node, tail, accumulator|
       tag, *args = node.line.split(' ')
 
       info = {id: [], className: [], tag: []}.merge(
-        tag.scan($regexp.tagOrClassOrId).group_by do |match|
+        tag.scan(REGULAR_EXPRESSIONS.tagOrClassOrId).group_by do |match|
           case match[0]
           when '#' then :id
           when '.' then :className
@@ -106,7 +82,7 @@ class Grapher
         end
       )
 
-      attributes, text = splitAt(args) { |x| !(x =~ $regexp.attribute).nil? }
+      attributes, text = splitAt(args) { |x| !(x =~ REGULAR_EXPRESSIONS.attribute).nil? }
       attributes2 = attributes.map{ |x| x.split('=') }
 
       hasText = text.length != 0
@@ -114,9 +90,9 @@ class Grapher
       newChildren =
         if hasText
           [makeTextNode(Line.new(text.join(' ')))]
-          .concat(node.getChildren().map(&method(:makeTextNode)))
+          .concat(node.getChildren.map(&method(:makeTextNode)))
         else
-          makeGraph(node.getChildren())
+          makeGraph(node.getChildren)
         end
 
       get_tail = lambda { |x| x.slice(1..-1) }
@@ -129,7 +105,7 @@ class Grapher
 
       return [
         tail,
-        accumulator + [makeNode(:HTMLElement, {
+        accumulator + [Node.new(:HTMLElement, {
           tag: info[:tag][0] || 'div',
           props: props.to_h,
           children: newChildren,
@@ -138,9 +114,9 @@ class Grapher
     end,
   }, {
     # Conditions like - if ... - else ...
-    regexp: $regexp.matchLogic,
+    regexp: REGULAR_EXPRESSIONS.matchLogic,
     handler: lambda do |node, tail, accumulator|
-      withoutPrefix = match($regexp.matchLogic, node.line).first
+      withoutPrefix = match(REGULAR_EXPRESSIONS.matchLogic, node.line).first
       command, *args =
         withoutPrefix.split(' ')
         .select{ |x| x != '' }
@@ -150,7 +126,7 @@ class Grapher
         predicate = match(/^if ?(.*)/, withoutPrefix).first
 
         if (_else_ && /^- *?else */ =~ _else_.line)
-          return [withoutElse, accumulator + [makeNode(:Logic, {
+          return [withoutElse, accumulator + [Node.new(:Logic, {
             type: 'if',
             payload: {
               predicate: predicate,
@@ -159,7 +135,7 @@ class Grapher
             children: makeGraph(node.getChildren()),
           })]]
         else
-          return [tail, accumulator + [makeNode(:Logic, {
+          return [tail, accumulator + [Node.new(:Logic, {
             type: 'if',
             payload: {
               predicate: predicate,
@@ -177,7 +153,7 @@ class Grapher
           "Malformed for loop (#{node.line})"
         )
 
-        return [tail, accumulator + [makeNode(:Logic, {
+        return [tail, accumulator + [Node.new(:Logic, {
           type: 'for',
           payload: { item: item, collection: collection },
           children: makeGraph(node.getChildren()),
@@ -194,7 +170,7 @@ class Grapher
 
     node, *rest = nodes
 
-    matcher = $matchers.find{ |matcher| matcher[:regexp] =~ node.line }
+    matcher = MATCHERS.find{ |matcher| matcher[:regexp] =~ node.line }
 
     assert(!matcher.nil?, 'Line did not match anything')
 

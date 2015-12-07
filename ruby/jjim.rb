@@ -2,7 +2,6 @@ require 'pp'
 require 'json'
 
 require_relative 'classes'
-require_relative 'figureIndentation'
 require_relative 'makeGraph'
 
 def graph(code)
