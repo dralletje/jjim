@@ -50,7 +50,7 @@ class Grapher
     handler: lambda do |node, tail, accumulator|
       tag, rest = match(REGULAR_EXPRESSIONS.matchInline, node.line)
       if EMBEDDED.include?(tag)
-        return [tail, accumulator + [Node.new(:Block, {
+        return [tail, accumulator + [Node.new(Node.BLOCK, {
           type: tag,
           block: (rest == '' ? [] : [rest]).concat(node.getBlock())
         })]]
@@ -86,8 +86,8 @@ class Grapher
 
       newChildren =
         if hasText
-          [makeTextNode(Line.new(text.join(' ')))]
-          .concat(node.getChildren.map(&method(:makeTextNode)))
+          [make_text_node(Line.new(text.join(' ')))]
+          .concat(node.getChildren.map(&method(:make_text_node)))
         else
           makeGraph(node.getChildren)
         end
@@ -102,7 +102,7 @@ class Grapher
 
       return [
         tail,
-        accumulator + [Node.new(:HTMLElement, {
+        accumulator + [Node.new(Node.HTML_ELEMENT, {
           tag: info[:tag][0] || 'div',
           props: props.to_h,
           children: newChildren,
@@ -123,7 +123,7 @@ class Grapher
         predicate = match(/^if ?(.*)/, withoutPrefix).first
 
         if (_else_ && /^- *?else */ =~ _else_.line)
-          return [withoutElse, accumulator + [Node.new(:Logic, {
+          return [withoutElse, accumulator + [Node.new(Node.LOGIC, {
             type: 'if',
             payload: {
               predicate: predicate,
@@ -132,7 +132,7 @@ class Grapher
             children: makeGraph(node.getChildren()),
           })]]
         else
-          return [tail, accumulator + [Node.new(:Logic, {
+          return [tail, accumulator + [Node.new(Node.LOGIC, {
             type: 'if',
             payload: {
               predicate: predicate,
@@ -150,7 +150,7 @@ class Grapher
           "Malformed for loop (#{node.line})"
         )
 
-        return [tail, accumulator + [Node.new(:Logic, {
+        return [tail, accumulator + [Node.new(Node.LOGIC, {
           type: 'for',
           payload: { item: item, collection: collection },
           children: makeGraph(node.getChildren()),

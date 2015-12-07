@@ -73,6 +73,16 @@ class Node
     :Block,
   ]
 
+  # Add constants for them all!
+  @@types.each do |type|
+    self.class_eval("def self.#{type.upcase}; :#{type} ;end")
+  end
+
+  # Create more ruby_ish constant for HTMLElement 😁
+  def self.HTML_ELEMENT
+    :HTMLElement
+  end
+
   def initialize(type, payload)
     Grapher.assert(@@types.include?(type), "Unknown type '#{type}'")
 
@@ -81,6 +91,6 @@ class Node
   end
 
   def to_json(*opts)
-    {type: @type, payload: @payload}.to_json(*opts)
+    {type: @type.to_s, payload: @payload}.to_json(*opts)
   end
 end

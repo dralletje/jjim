@@ -1,16 +1,16 @@
 module LanguageDefinition
-      Node.new(:Text, payload)
   TEXT_NODE_CREATORS = {
     '|' => lambda do |payload|
+      Node.new(Node.TEXT, payload)
     end,
-      Node.new(:Variable, {
     '=' => lambda do |payload|
+      Node.new(Node.VARIABLE, {
         code: payload,
         escaped: true,
       })
     end,
-      Node.new(:Variable, {
     '==' => lambda do |payload|
+      Node.new(Node.VARIABLE, {
         code: payload,
         escaped: false,
       })
