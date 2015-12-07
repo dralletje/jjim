@@ -56,8 +56,18 @@ class Line
     end
   end
 
+  def to_node(type, payload)
+    Node.new(type, payload, self)
+  end
+
   def graph(accumulator = [])
     Grapher.make_graph(get_children, accumulator)
+  end
+
+  def assert(pred, msg)
+    if not pred
+      raise Exception.new(msg + "(#{line})")
+    end
   end
 end
 
@@ -83,9 +93,10 @@ class Node
     :HTMLElement
   end
 
-  def initialize(type, payload)
-    Grapher.assert(@@types.include?(type), "Unknown type '#{type}'")
+  def initialize(type, payload, line)
+    line.assert(@@types.include?(type), "Unknown type '#{type}'")
 
+    @line = line
     @type = type
     @payload = payload
   end
