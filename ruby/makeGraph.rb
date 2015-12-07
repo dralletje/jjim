@@ -1,7 +1,6 @@
 require_relative 'classes'
 require_relative 'constants'
 
-require 'ostruct'
 require 'pp'
 
 class Grapher
@@ -21,22 +20,20 @@ class Grapher
     regexp.match(string).to_a.slice(1..-1)
   end
 
-  EMBEDDED = ['javascript']
-
-  def self.splitAt(array, &predicate)
+  def self.split_at(array, &predicate)
     [
       array.take_while(&predicate),
       array.drop_while(&predicate),
     ]
   end
 
-  def self.makeTextNode(node)
+  def self.make_text_node(node)
     assert(node.getChildren.length == 0, 'A text node can\'t have any children')
 
     specialText = match(REGULAR_EXPRESSIONS.matchSpecialText, node.line)
     operator, text = (specialText or ['|', node.line])
 
-    TEXT_NODE_TYPES[operator].call(text)
+    TEXT_NODE_CREATORS[operator].call(text)
   end
 
   MATCHERS = [{
@@ -46,7 +43,7 @@ class Grapher
         node.getChildren.length === 0,
         "No please, don't give text any children!"
       )
-      return [tail, accumulator + [makeTextNode(node)]]
+      return [tail, accumulator + [make_text_node(node)]]
     end,
   }, {
     regexp: REGULAR_EXPRESSIONS.matchInline,
@@ -82,7 +79,7 @@ class Grapher
         end
       )
 
-      attributes, text = splitAt(args) { |x| !(x =~ REGULAR_EXPRESSIONS.attribute).nil? }
+      attributes, text = split_at(args) { |x| !(x =~ REGULAR_EXPRESSIONS.attribute).nil? }
       attributes2 = attributes.map{ |x| x.split('=') }
 
       hasText = text.length != 0

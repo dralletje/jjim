@@ -1,6 +1,6 @@
 module LanguageDefinition
-  TEXT_NODE_TYPES = {
       Node.new(:Text, payload)
+  TEXT_NODE_CREATORS = {
     '|' => lambda do |payload|
     end,
       Node.new(:Variable, {
@@ -16,6 +16,8 @@ module LanguageDefinition
       })
     end,
   }
+
+  EMBEDDED = ['javascript']
 
   REGULAR_EXPRESSIONS = OpenStruct.new({
     matchElement: /^([a-z#.][^ :]*) *([|= ]|==|$)((?: *[^ ]+)*)$/i,
