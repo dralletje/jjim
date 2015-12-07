@@ -1,16 +1,16 @@
 module LanguageDefinition
   TEXT_NODE_TYPES = {
-    '|' => -> (payload) do
       Node.new(:Text, payload)
+    '|' => lambda do |payload|
     end,
-    '=' => -> (payload) do
       Node.new(:Variable, {
+    '=' => lambda do |payload|
         code: payload,
         escaped: true,
       })
     end,
-    '==' => -> (payload) do
       Node.new(:Variable, {
+    '==' => lambda do |payload|
         code: payload,
         escaped: false,
       })
