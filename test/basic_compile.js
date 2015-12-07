@@ -314,7 +314,7 @@ const tests = (expectGraph) => {
   })
 }
 
-describe('Ruby compile', () => {
+describe.only('Ruby compile', () => {
   const expectGraph = code => ({
     equals: toBe => {
       // Run the ruby compiler,

@@ -1,140 +1,38 @@
 require_relative 'classes'
 require_relative 'constants'
 
-require 'pp'
+require_relative 'builders/logic_builder'
+require_relative 'builders/inline_builder'
+require_relative 'builders/element_builder'
 
 class Grapher
   include LanguageDefinition
 
-  def self.debug(arg)
-    STDERR.puts(PP.pp(arg, ""))
-  end
-
-  def self.hash_get(hash, key)
-    if   hash.include? key
-    then hash[key]
-    else hash[:otherwise]
-    end
-  end
-
-  def self.match(regexp, string)
-    regexp.match(string).to_a.slice(1..-1)
-  end
-
-  def self.split_at(array, &predicate)
-    [
-      array.take_while(&predicate),
-      array.drop_while(&predicate),
-    ]
-  end
-
-  def self.make_text_node(line)
-    line.assert(line.get_children.length == 0, 'A text node can\'t have any children')
-
-    special_text = match(REGULAR_EXPRESSIONS.match_special_text, line.line)
-    operator, text = (special_text or ['|', line.line])
-
-    TEXT_NODE_CREATORS[operator].call(text, line.method(:to_node))
-  end
-
-  MATCHERS = [{
-    regexp: REGULAR_EXPRESSIONS.match_special_text,
-    handler: lambda do |node, tail, accumulator|
-      node.assert(
-        node.get_children.length === 0,
-        "No please, don't give text any children!"
-      )
-      return [tail, accumulator + [make_text_node(node)]]
-    end,
-  }, {
-    regexp: REGULAR_EXPRESSIONS.match_inline,
-    handler: lambda do |line, tail, accumulator|
-      tag, rest = match(REGULAR_EXPRESSIONS.match_inline, line.line)
-      if EMBEDDED.include?(tag)
-        [tail, accumulator + [line.to_node(Node.BLOCK, {
-          type: tag,
-          block: (rest == '' ? [] : [rest]).concat(line.get_block())
-        })]]
-      else # It's an embedded tag
-        line.assert(rest != '', 'Inline tag without content')
-        [
-          [Line.new(tag, [Indentation.new(rest)] + line.child_lines)] + tail,
-          accumulator,
-        ]
-      end
-    end,
-  }, {
-    # Html tags like tag, .class, #id and mixes of those
-    regexp: REGULAR_EXPRESSIONS.match_element,
-    handler: lambda do |line, tail, accumulator|
-      tag, *args = line.line.split(' ')
-
-      info = {id: [], class_name: [], tag: []}.merge(
-        tag.scan(REGULAR_EXPRESSIONS.tag_or_class_or_id)
-        .group_by{ |x| hash_get(TAG_NAME_PARSERS, x[0]) }
-      )
-
-      attributes, text = split_at(args) { |x| !(x =~ REGULAR_EXPRESSIONS.attribute).nil? }
-      attributes2 = attributes.map{ |x| x.split('=') }
-
-      has_text = text.length != 0
-
-      new_children =
-        if has_text
-          [make_text_node(Line.new(text.join(' ')))]
-          .concat(line.get_children.map(&method(:make_text_node)))
-        else
-          line.graph
-        end
-
-      get_tail = lambda { |x| x.slice(1..-1) }
-      id = info[:id].map(&get_tail).join(' ')
-      class_name = info[:class_name].map(&get_tail).join(' ')
-      props =
-        attributes2
-        .concat(id == '' ? [] : [['id', "\"#{id}\""]])
-        .concat(class_name == '' ? [] : [['className', "\"#{class_name}\""]])
-
-      return [
-        tail,
-        accumulator + [line.to_node(Node.HTML_ELEMENT, {
-          tag: info[:tag][0] || 'div',
-          props: props.to_h,
-          children: new_children,
-        })]
-      ]
-    end,
-  }, {
-    # Conditions like - if ... - else ...
-    regexp: REGULAR_EXPRESSIONS.match_logic,
-    handler: lambda do |node, tail, accumulator|
-      logic_type_raw, query = match(REGULAR_EXPRESSIONS.match_logic, node.line)
-      logic_type = logic_type_raw.to_sym
-
-      node.assert(logic_type != :else, "Else condition without a if statement in front! D:")
-      node.assert(LOGIC_NODE_CREATOR.include?(logic_type), "Unsupported condition")
-      new_tail, new_node = LOGIC_NODE_CREATOR[logic_type].call(node, query, tail)
-      return [new_tail, accumulator + [new_node]]
-    end,
-  }]
+  BUILDERS = [
+    SpecialTextBuilder,
+    InlineBuilder,
+    ElementBuilder,
+    LogicBuilder,
+  ]
 
   def self.find_builder(line)
-    lambda do |rest, accumulator|
-      builder = MATCHERS.find{ |matcher| matcher[:regexp] =~ line.line }
-      line.assert(!builder.nil?, 'Line did not match any builder')
-      call_builder(builder, line, rest, accumulator)
-    end
+    builder = BUILDERS
+      .lazy
+      .map{ |builder_class| builder_class.new(line) }
+      .find{ |builder| builder.matches? }
+    line.assert(!builder.nil?, 'Line did not match any builder')
+    builder
   end
 
-  def self.call_builder(builder, line, *args)
-    cps_args = builder[:handler].call(line, *args)
-    line.assert(cps_args.length == 2, "Builder method returning bad array.")
+  def self.call_builder(builder, *args)
+    cps_args = builder.run(*args)
+    builder.assert(cps_args.length == 2, "Builder method returning bad array.")
     cps_args
   end
 
   def self.make_graph(lines, accumulator = [])
     return accumulator if lines.length == 0
-    line, *rest = lines
-    make_graph(*find_builder(line).call(rest, accumulator))
+    line, *tail = lines
+    make_graph(*call_builder(find_builder(line), tail, accumulator))
   end
 end

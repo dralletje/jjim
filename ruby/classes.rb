@@ -60,6 +60,10 @@ class Line
     Node.new(type, payload, self)
   end
 
+  def has_children?
+    get_children.length != 0
+  end
+
   def graph(accumulator = [])
     Grapher.make_graph(get_children, accumulator)
   end
