@@ -1,3 +1,5 @@
+require 'ostruct'
+
 class Indentation
   def initialize(line)
     withoutIndent = line.gsub(/^ */, '')
@@ -16,39 +18,46 @@ class Indentation
 end
 
 class Line
-  attr_reader :childLines
   attr_reader :line
 
-  def initialize(line, childLines = [])
+  def initialize(line, child_lines = [])
     @line = line
-    @childLines = childLines
+    @child_lines = child_lines
   end
 
+  def nested_children
+    first_line, *tail = @child_lines
+    tail.take_while do |line|
+      line.indentation > first_line.indentation
+    end
+  end
+
+  def next_lines
+    first_line, *tail = @child_lines
+    tail.drop_while do |line|
+      line.indentation > first_line.indentation
+    end
+  end
+
+  # Create nested object
   def getChildren
-    nextLine = @childLines.first
-    if nextLine.nil?
+    if @child_lines.first.nil?
       []
     else
-      figureIndentation(@childLines, nextLine.indentation)
+      [Line.new(@child_lines.first.line, nested_children)] + Line.new('', next_lines).getChildren
     end
   end
 
   def getBlock
-    nextLine = @childLines.first
-    if nextLine.nil?
-      []
-    else
-      @childLines.map{
-        |child| (' ' * (child.indentation - nextLine.indentation)) + child.line
-      }
+    nextLine = @child_lines.first
+    @child_lines.map do |child|
+      (' ' * (child.indentation - nextLine.indentation)) + child.line
     end
   end
 
-  def simple
-    {
-      line: @line,
-      children: getChildren.map{ |x| x.simple },
-    }
+  # For javascript 'compatibility'
+  def childLines
+    @child_lines
   end
 end
 
