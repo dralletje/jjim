@@ -125,16 +125,21 @@ class Grapher
     end,
   }]
 
+  def self.find_builder(node)
+    builder = MATCHERS.find{ |matcher| matcher[:regexp] =~ node.line }
+    node.assert(!builder.nil?, 'Line did not match any builder')
+    builder
+  end
+
+  def self.call_builder(builder)
+    cps_args = matcher[:handler].call(node, rest, accumulator)
+    node.assert(cps_args.length == 2, "Builder method returning bad array.")
+    cps_args
+  end
+
   def self.make_graph(nodes, accumulator = [])
     return accumulator if nodes.length == 0
-
     node, *rest = nodes
-    matcher = MATCHERS.find{ |matcher| matcher[:regexp] =~ node.line }
-
-    assert(!matcher.nil?, 'Line did not match anything')
-
-    cps_args = matcher[:handler].call(node, rest, accumulator)
-    assert(cps_args.length == 2, "Matcher method returning bad array.")
-    make_graph(*cps_args)
+    make_graph(*call_builder(find_builder(node)))
   end
 end
