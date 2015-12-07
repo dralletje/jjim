@@ -9,6 +9,12 @@ module LanguageDefinition
     end
   end
 
+  TAG_NAME_PARSERS = {
+    '#' => :id,
+    '.' => :class_name,
+    :otherwise => :tag,
+  }
+
   TEXT_NODE_CREATORS = {
     '|' => lambda do |payload|
       Node.new(Node.TEXT, payload)
@@ -68,13 +74,15 @@ module LanguageDefinition
 
   EMBEDDED = ['javascript']
 
+  TAG_SIGNS = TAG_NAME_PARSERS.keys.reject{ |x| x == :otherwise }.map(&:to_s).join
   REGULAR_EXPRESSIONS = OpenStruct.new({
     match_element: /^([a-z#.][^ :]*) *([|= ]|==|$)((?: *[^ ]+)*)$/i,
     match_inline: /^([^: ]+): *(.*)/,
     match_logic: /^- *([a-z]+) *(.*)/,
     match_special_text: /^(\||==?) *(.*)/,
 
-    tag_or_class_or_id: /(?:[a-z]+)|(?:#[a-z0-9-]+)|(?:\.[a-z0-9-]+)/i,
+    #tag_or_class_or_id: /(?:[a-z0-9_-]+)|(?:#[a-z0-9_-]+)|(?:\.[a-z0-9_-]+)/i,
+    tag_or_class_or_id: /[#{TAG_SIGNS}]?[^#{TAG_SIGNS}]+/i,
     attribute: /^([a-z]+)=[^ ]/i,
   })
 end

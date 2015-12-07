@@ -16,6 +16,13 @@ class Grapher
     STDERR.puts(PP.pp(arg, ""))
   end
 
+  def self.hash_get(hash, key)
+    if   hash.include? key
+    then hash[key]
+    else hash[:otherwise]
+    end
+  end
+
   def self.match(regexp, string)
     regexp.match(string).to_a.slice(1..-1)
   end
@@ -69,14 +76,9 @@ class Grapher
     handler: lambda do |node, tail, accumulator|
       tag, *args = node.line.split(' ')
 
-      info = {id: [], className: [], tag: []}.merge(
-        tag.scan(REGULAR_EXPRESSIONS.tag_or_class_or_id).group_by do |match|
-          case match[0]
-          when '#' then :id
-          when '.' then :className
-          else :tag
-          end
-        end
+      info = {id: [], class_name: [], tag: []}.merge(
+        tag.scan(REGULAR_EXPRESSIONS.tag_or_class_or_id)
+        .group_by{ |x| hash_get(TAG_NAME_PARSERS, x[0]) }
       )
 
       attributes, text = split_at(args) { |x| !(x =~ REGULAR_EXPRESSIONS.attribute).nil? }
@@ -94,7 +96,7 @@ class Grapher
 
       get_tail = lambda { |x| x.slice(1..-1) }
       id = info[:id].map(&get_tail).join(' ')
-      class_name = info[:className].map(&get_tail).join(' ')
+      class_name = info[:class_name].map(&get_tail).join(' ')
       props =
         attributes2
         .concat(id == '' ? [] : [['id', "\"#{id}\""]])
