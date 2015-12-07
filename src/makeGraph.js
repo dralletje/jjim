@@ -1,44 +1,13 @@
 import _ from 'lodash'
 
-// EDIT THE RegExp.test METHOD!!!
-const regexpTest = regexp => subject => regexp.test(subject)
-
-const assert = (pred, msg) => {
-  if (!pred) {
-    throw new Error(msg)
-  }
-}
-
-const debug = (...args) => {
-  console.error(...args)
-}
-
-const match = (regexp, subject) =>{
-  const localMatch = subject.match(regexp)
-  return localMatch === null ? localMatch : localMatch.slice(1)
-}
+import {
+  assert, splitAt, debug,
+  regexpmatch, does_match, types,
+} from './utils'
 
 const EMBEDDED = ['javascript']
 
-const splitAt = (array, predicate) => {
-  const _index = array.findIndex(x => !predicate(x))
-  const index = _index === -1 ? Infinity : _index
-
-  return [
-    array.slice(0, index),
-    array.slice(index)
-  ]
-}
-
 const makeNode = (type, payload) => ({type, payload})
-
-const types = {
-  HTMLElement: 'HTMLElement',
-  Logic: 'Logic',
-  Text: 'Text',
-  Variable: 'Variable',
-  Block: 'Block',
-}
 
 const regexp = {
   matchElement: /^([a-z#.][^ :]*) *([|= ]|==|$)((?: *[^ ]+)*)$/i,
@@ -52,12 +21,10 @@ const regexp = {
 }
 
 const makeTextNode = node => {
-  assert(node.getChildren().length !== [], 'A text node can\'t have any children')
+  assert(node.getChildren().length !== [], 'A text node can\'t have any children', node)
 
-  const match = node.line.match(regexp.matchSpecialText)
-  const [operator, text] =
-    match !== null
-    ? match.slice(1) : ['|', node.line]
+  const match = regexpmatch(regexp.matchSpecialText, node.line)
+  const [operator, text] = match || ['|', node.line]
 
   switch (operator) {
   case '|':
@@ -79,23 +46,24 @@ const matchers = [{
   regexp: regexp.matchSpecialText,
   handler: (node, tail, next) => {
     assert(
-      node.getChildren.length === 0,
-      `No please, don't give text any children!`
+      node.getChildren.length == 0,
+      `No please, don't give text any children!`,
+      node
     )
     return [makeTextNode(node)].concat(next(tail))
   }
 }, {
   regexp: regexp.matchInline,
   handler: (node, tail, next) => {
-    const [tag, rest] = node.line.match(regexp.matchInline).slice(1)
+    const [tag, rest] = regexpmatch(regexp.matchInline, node.line)
     // It's an embedder
     if (EMBEDDED.indexOf(tag) !== -1) {
       return [makeNode(types.Block, {
         type: tag,
-        block: (rest === '' ? [] : [rest]).concat(node.getBlock())
+        block: (rest == '' ? [] : [rest]).concat(node.getBlock())
       })].concat(next(tail))
     } else { // It's an embedded tag
-      assert(rest !== '', 'inline tag without content')
+      assert(rest !== '', `After a inline colon you need content!`, node)
 
       return next([{
         line: tag,
@@ -129,7 +97,7 @@ const matchers = [{
       })
     )
 
-    const [attributes, text] = splitAt(args, regexpTest(regexp.attribute))
+    const [attributes, text] = splitAt(args, (subject) => does_match(regexp.attribute, subject))
     const attributes2 = attributes.map(x => x.split('='))
 
     const hasText = text.length !== 0
@@ -144,8 +112,8 @@ const matchers = [{
     const className = info.className.map(x => x.slice(1)).join(' ')
     const props =
       attributes2
-      .concat(id === '' ? [] : [['id', `"${id}"`]])
-      .concat(className === '' ? [] : [['className', `"${className}"`]])
+      .concat(id == '' ? [] : [['id', `"${id}"`]])
+      .concat(className == '' ? [] : [['className', `"${className}"`]])
 
     return [makeNode(types.HTMLElement, {
       tag: info.tag[0] || 'div',
@@ -157,12 +125,12 @@ const matchers = [{
   // Conditions like - if ... - else ...
   regexp: regexp.matchLogic,
   handler: (node, tail, next) => {
-    const withoutPrefix = node.line.match(regexp.matchLogic)[1]
+    const withoutPrefix = regexpmatch(regexp.matchLogic, node.line)[0]
     const [command, ...args] =
       withoutPrefix.split(' ')
       .filter(x => x !== '')
 
-    if (command === 'if') {
+    if (command == 'if') {
       const [_else_, ...withoutElse] = tail
 
       if (_else_ && /^- *?else */.test(_else_.line)) {
@@ -185,12 +153,13 @@ const matchers = [{
       }
     }
 
-    if (command === 'for') {
+    if (command == 'for') {
       const [item, _in_, collection, ...tooMuch] = args
 
       assert(
-        _in_ === 'in' && tooMuch.length === 0,
-        `Malformed for loop (${node.line})`
+        _in_ == 'in' && tooMuch.length == 0,
+        `Malformed for loop (${node.line})`,
+        node
       )
 
       return [makeNode(types.Logic, {
@@ -200,8 +169,8 @@ const matchers = [{
       })].concat(next(tail))
     }
 
-    assert(command !== 'else', `Else condition without a if statement in front! D:`)
-    assert(false, `Unsupported condition '${node.line}'`)
+    assert(command !== 'else', `Else condition without a if statement in front! D:`, node)
+    assert(false, `Unsupported condition '${node.line}'`, node)
   }
 }]
 // }, {
@@ -232,7 +201,7 @@ const matchers = [{
 
 
 const graphToReact = nodes => {
-  if (nodes.length === 0) {
+  if (nodes.length == 0) {
     return []
   }
 
@@ -241,7 +210,7 @@ const graphToReact = nodes => {
   const matcher = matchers.find( ({regexp}) => regexp.test(node.line))
 
   //assert(matcher !== undefined, 'Weird things')
-  if (matcher === undefined) {
+  if (matcher == undefined) {
     return [{
       type: 'UNKNOWN',
       payload: node.line,
