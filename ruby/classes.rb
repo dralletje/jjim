@@ -55,6 +55,10 @@ class Line
       (' ' * (child.indentation - next_line.indentation)) + child.line
     end
   end
+
+  def graph(accumulator = [])
+    Grapher.make_graph(get_children, accumulator)
+  end
 end
 
 class Node

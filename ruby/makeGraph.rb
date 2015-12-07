@@ -58,7 +58,7 @@ class Grapher
         assert(rest != '', 'Inline tag without content')
 
         return [
-          [Line.new(tag, [Indentation.new(rest)] + node.child_lines)]+ tail,
+          [Line.new(tag, [Indentation.new(rest)] + node.child_lines)] + tail,
           accumulator,
         ]
       end
@@ -89,7 +89,7 @@ class Grapher
           [make_text_node(Line.new(text.join(' ')))]
           .concat(node.get_children.map(&method(:make_text_node)))
         else
-          make_graph(node.get_children)
+          node.graph
         end
 
       get_tail = lambda { |x| x.slice(1..-1) }
@@ -113,52 +113,13 @@ class Grapher
     # Conditions like - if ... - else ...
     regexp: REGULAR_EXPRESSIONS.match_logic,
     handler: lambda do |node, tail, accumulator|
-      without_prefix = match(REGULAR_EXPRESSIONS.match_logic, node.line).first
-      command, *args =
-        without_prefix.split(' ')
-        .select{ |x| x != '' }
+      logic_type_raw, query = match(REGULAR_EXPRESSIONS.match_logic, node.line)
+      logic_type = logic_type_raw.to_sym
 
-      if command == 'if'
-        _else_, *without_else = tail
-        predicate = match(/^if ?(.*)/, without_prefix).first
-
-        if (_else_ && /^- *?else */ =~ _else_.line)
-          return [without_else, accumulator + [Node.new(Node.LOGIC, {
-            type: 'if',
-            payload: {
-              predicate: predicate,
-            else: make_graph(_else_.get_children)
-            },
-            children: make_graph(node.get_children),
-          })]]
-        else
-          return [tail, accumulator + [Node.new(Node.LOGIC, {
-            type: 'if',
-            payload: {
-              predicate: predicate,
-            },
-            children: make_graph(node.get_children),
-          })]]
-        end
-      end
-
-      if command == 'for'
-        item, _in_, collection, *too_much = args
-
-        assert(
-          _in_ == 'in' && too_much.length == 0,
-          "Malformed for loop (#{node.line})"
-        )
-
-        return [tail, accumulator + [Node.new(Node.LOGIC, {
-          type: 'for',
-          payload: { item: item, collection: collection },
-          children: make_graph(node.get_children),
-        })]]
-      end
-
-      assert(command != 'else', "Else condition without a if statement in front! D:")
-      assert(false, "Unsupported condition '#{node.line}'")
+      assert(logic_type != :else, "Else condition without a if statement in front! D:")
+      assert(LOGIC_NODE_CREATOR.include?(logic_type), "Unsupported condition '#{node.line}'")
+      new_tail, new_node = LOGIC_NODE_CREATOR[logic_type].call(node, query, tail)
+      return [new_tail, accumulator + [new_node]]
     end,
   }]
 
@@ -166,7 +127,6 @@ class Grapher
     return accumulator if nodes.length == 0
 
     node, *rest = nodes
-
     matcher = MATCHERS.find{ |matcher| matcher[:regexp] =~ node.line }
 
     assert(!matcher.nil?, 'Line did not match anything')
